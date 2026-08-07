@@ -41,6 +41,8 @@ dependencies:
   # Gerenciamento de estado reativo
   provider: ^6.1.2
 
+  url_launcher: ^6.3.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
