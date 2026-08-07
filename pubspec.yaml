@@ -1,0 +1,50 @@
+name: navegador_docx
+description: "Portal Universitário — Navegador com correção de download de documentos DOCX para Android."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Ícones Material
+  cupertino_icons: ^1.0.8
+
+  # WebView com suporte a interceptação de downloads e cookies
+  flutter_inappwebview: ^6.1.5
+
+  # Cliente HTTP para download com headers customizados e suporte a cookies
+  dio: ^5.7.0
+
+  # Localizar diretório Documents no dispositivo
+  path_provider: ^2.1.4
+
+  # Abrir arquivos com o aplicativo padrão do dispositivo
+  open_filex: ^4.6.0
+
+  # Solicitar permissões de armazenamento em tempo de execução
+  permission_handler: ^11.3.1
+
+  # Compartilhar arquivos via WhatsApp, e-mail, etc.
+  share_plus: ^10.0.0
+
+  # Persistir histórico de downloads localmente
+  shared_preferences: ^2.3.2
+
+  # Formatação de datas e tamanhos de arquivo
+  intl: ^0.19.0
+
+  # Gerenciamento de estado reativo
+  provider: ^6.1.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true

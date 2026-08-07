@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  file_paths.xml — Configuração do FileProvider
+  Define quais diretórios do aplicativo podem ter seus arquivos compartilhados
+  com outros apps via URI segura (content://) no Android 10+.
+-->
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Permite compartilhar arquivos do diretório Documents externo -->
+    <external-path name="external_files" path="." />
+    <!-- Permite compartilhar do diretório de downloads do app -->
+    <external-files-path name="app_external_files" path="." />
+    <!-- Pasta Documents padrão do dispositivo -->
+    <external-path name="documents" path="Documents/" />
+</paths>

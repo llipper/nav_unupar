@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  network_security_config.xml — Configuração de segurança de rede
+  Permite tráfego HTTP (não HTTPS) para portais universitários que ainda
+  não migraram completamente para HTTPS.
+-->
+<network-security-config>
+    <!-- Permite cleartext (HTTP) para todos os domínios.
+         Ajuste para listar apenas os domínios do portal da universidade
+         se quiser maior segurança. -->
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
