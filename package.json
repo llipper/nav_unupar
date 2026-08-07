@@ -1,0 +1,20 @@
+{
+  "name": "navegador_docx_web",
+  "version": "1.0.0",
+  "description": "Portal Universitário — Navegador e Corretor de DOCX Online",
+  "private": true,
+  "scripts": {
+    "build": "flutter build web --release",
+    "start": "npx serve build/web",
+    "vercel-build": "flutter build web --release"
+  },
+  "keywords": [
+    "flutter",
+    "web",
+    "docx",
+    "portal",
+    "university"
+  ],
+  "author": "Antigravity",
+  "license": "MIT"
+}

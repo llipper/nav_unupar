@@ -4,12 +4,13 @@
 //
 // Responsabilidades:
 // 1. Inicializar os bindings do Flutter
-// 2. Configurar o WebView para Android (InAppWebView)
-// 3. Solicitar permissões de armazenamento em tempo de execução
+// 2. Configurar o WebView para Android (InAppWebView) se não estiver na Web
+// 3. Solicitar permissões de armazenamento em tempo de execução no Android
 // 4. Iniciar o aplicativo
 
-import 'dart:io';
+import 'dart:io' show Platform;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -21,12 +22,12 @@ void main() async {
   // antes de qualquer operação assíncrona
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Configuração obrigatória do InAppWebView para Android
-  if (Platform.isAndroid) {
+  // Configuração obrigatória do InAppWebView para Android (apenas nativo)
+  if (!kIsWeb && Platform.isAndroid) {
     await InAppWebViewController.setWebContentsDebuggingEnabled(false);
   }
 
-  // Solicitar permissões necessárias
+  // Solicitar permissões necessárias (apenas Android nativo)
   await _requestPermissions();
 
   // Iniciar o app
@@ -34,32 +35,22 @@ void main() async {
 }
 
 /// Solicita permissões de armazenamento para Android 10+ com Scoped Storage.
-/// Em Android 13+ (API 33), as permissões granulares são necessárias.
 Future<void> _requestPermissions() async {
-  if (!Platform.isAndroid) return;
-
-  // Android 13+ (API 33): usa permissões granulares de mídia
-  // Android 10-12: usa READ/WRITE_EXTERNAL_STORAGE
-  // Nota: com minSdk=29 e targetSdk=35, escrita no scoped storage
-  // não requer permissão, mas Documents/ precisa de tratamento especial.
+  if (kIsWeb || !Platform.isAndroid) return;
 
   final permissions = <Permission>[
-    Permission.storage,        // Para Android 9-12
-    Permission.manageExternalStorage, // Para Android 11+ (acesso a Documents/)
+    Permission.storage,
+    Permission.manageExternalStorage,
   ];
 
-  // Verificar quais permissões ainda não foram concedidas
   final statusMap = await permissions.request();
 
-  // Verificar se pelo menos a permissão básica foi concedida
-  // (manageExternalStorage pode ser negada sem prejudicar o funcionamento básico)
   final storageGranted = statusMap[Permission.storage]?.isGranted ?? false;
   final manageGranted =
       statusMap[Permission.manageExternalStorage]?.isGranted ?? false;
 
-  // Se nenhuma permissão foi concedida, o app ainda funciona
-  // pois usamos getExternalStorageDirectory() como fallback (pasta interna do app)
   debugPrint(
     'Permissões: storage=$storageGranted, manageExternal=$manageGranted',
   );
 }
+

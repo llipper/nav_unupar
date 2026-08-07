@@ -1,9 +1,9 @@
 // lib/controllers/history_controller.dart
 //
 // Controller do histórico de downloads (ChangeNotifier para uso com Provider).
-// Gerencia carregamento, exclusão e abertura de arquivos do histórico.
+// Gerencia carregamento, exclusão e abertura de arquivos do histórico (suporta web e nativo).
 
-import 'dart:io';
+import 'dart:io' show File;
 
 import 'package:flutter/foundation.dart';
 import 'package:open_filex/open_filex.dart';
@@ -19,8 +19,6 @@ class HistoryController extends ChangeNotifier {
   HistoryController({DownloadRepository? repository})
     : _repository = repository ?? DownloadRepository();
 
-  // ===== ESTADO =====
-
   List<DownloadRecord> _records = [];
   List<DownloadRecord> get records => List.unmodifiable(_records);
 
@@ -33,12 +31,8 @@ class HistoryController extends ChangeNotifier {
   bool get isEmpty => _records.isEmpty;
   int get count => _records.length;
 
-  /// Tamanho total de todos os arquivos em bytes
   int get totalSize => _records.fold<int>(0, (sum, r) => sum + r.fileSize);
 
-  // ===== CARREGAMENTO =====
-
-  /// Carrega o histórico do armazenamento
   Future<void> loadHistory() async {
     _isLoading = true;
     _errorMessage = null;
@@ -54,44 +48,33 @@ class HistoryController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Adiciona um novo registro ao topo do histórico (sem recarregar do storage)
   void addRecord(DownloadRecord record) {
     _records.insert(0, record);
     notifyListeners();
   }
 
-  // ===== EXCLUSÃO =====
-
-  /// Exclui um registro do histórico e opcionalmente o arquivo físico
   Future<bool> deleteRecord(String id, {bool deleteFile = true}) async {
     final record = _records.where((r) => r.id == id).firstOrNull;
     if (record == null) return false;
 
-    // Excluir arquivo físico se solicitado
-    if (deleteFile) {
+    if (deleteFile && !kIsWeb) {
       try {
         final file = File(record.filePath);
         if (await file.exists()) {
           await file.delete();
         }
-      } catch (_) {
-        // Continuar mesmo se não conseguir excluir o arquivo
-      }
+      } catch (_) {}
     }
 
-    // Remover do repositório
     await _repository.deleteRecord(id);
-
-    // Remover da lista local
     _records.removeWhere((r) => r.id == id);
     notifyListeners();
 
     return true;
   }
 
-  /// Limpa todo o histórico
   Future<void> clearAll({bool deleteFiles = false}) async {
-    if (deleteFiles) {
+    if (deleteFiles && !kIsWeb) {
       for (final record in _records) {
         try {
           final file = File(record.filePath);
@@ -107,10 +90,14 @@ class HistoryController extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ===== ABRIR ARQUIVO =====
-
-  /// Abre um arquivo com o aplicativo padrão do dispositivo
   Future<OpenResult> openFile(DownloadRecord record) async {
+    if (kIsWeb) {
+      return OpenResult(
+        type: ResultType.done,
+        message: 'Arquivo baixado via navegador.',
+      );
+    }
+
     final file = File(record.filePath);
     if (!await file.exists()) {
       return OpenResult(
@@ -119,11 +106,8 @@ class HistoryController extends ChangeNotifier {
       );
     }
 
-    // Tentar abrir via OpenFilex
     var result = await OpenFilex.open(record.filePath, type: record.mimeType);
 
-    // Se der erro de permissão (comum no Android 11+ com arquivos fora do app storage),
-    // copiar para o diretório temporário do app onde o FileProvider tem permissão total
     if (result.type == ResultType.permissionDenied) {
       try {
         final tempDir = await getTemporaryDirectory();
@@ -136,10 +120,9 @@ class HistoryController extends ChangeNotifier {
     return result;
   }
 
-  // ===== COMPARTILHAR ARQUIVO =====
-
-  /// Compartilha um arquivo via share sheet do Android
   Future<void> shareFile(DownloadRecord record) async {
+    if (kIsWeb) return;
+
     final file = File(record.filePath);
     if (!await file.exists()) return;
 
@@ -149,10 +132,9 @@ class HistoryController extends ChangeNotifier {
     );
   }
 
-  // ===== VERIFICAR EXISTÊNCIA =====
-
-  /// Verifica se o arquivo físico ainda existe no dispositivo
   Future<bool> fileExists(DownloadRecord record) async {
+    if (kIsWeb) return true;
     return File(record.filePath).exists();
   }
 }
+

@@ -7,16 +7,18 @@
 // - Cookies da sessão do WebView (mantém autenticação)
 // - Cabeçalhos idênticos ao navegador desktop
 // - Detecção automática do tipo real do arquivo por magic bytes
-// - Salvamento com extensão correta
+// - Salvamento com extensão correta (nativo e web)
 
-import 'dart:io';
+import 'dart:io' show Directory, File;
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../models/download_record.dart';
 import '../utils/constants.dart';
+import '../utils/file_saver.dart';
 import '../utils/file_utils.dart';
 import 'file_type_service.dart';
 
@@ -44,8 +46,6 @@ enum DownloadErrorType {
 }
 
 /// Callback de progresso do download
-/// [downloaded]: bytes baixados até agora
-/// [total]: total de bytes (-1 se desconhecido)
 typedef ProgressCallback = void Function(int downloaded, int total);
 
 class DownloadService {
@@ -54,46 +54,32 @@ class DownloadService {
   DownloadService() {
     _dio = Dio(
       BaseOptions(
-        // Timeout de conexão
         connectTimeout: Duration(
           seconds: AppConstants.connectionTimeoutSeconds,
         ),
-        // Timeout de recebimento
         receiveTimeout: Duration(
           seconds: AppConstants.receiveTimeoutSeconds,
         ),
-        // Seguir redirecionamentos automaticamente
         followRedirects: true,
         maxRedirects: AppConstants.maxRedirects,
-        // Receber dados como bytes (não como string)
         responseType: ResponseType.bytes,
-        // Aceitar todos os status codes para tratar erros manualmente
         validateStatus: (status) => status != null && status < 600,
       ),
     );
 
-    // Interceptor para logging em modo debug
-    _dio.interceptors.add(
-      LogInterceptor(
-        requestHeader: true,
-        responseHeader: true,
-        requestBody: false,
-        responseBody: false,
-        error: true,
-      ),
-    );
+    if (kDebugMode) {
+      _dio.interceptors.add(
+        LogInterceptor(
+          requestHeader: true,
+          responseHeader: true,
+          requestBody: false,
+          responseBody: false,
+          error: true,
+        ),
+      );
+    }
   }
 
-  /// Realiza o download de um arquivo a partir de uma URL,
-  /// usando os cookies da sessão atual do WebView.
-  ///
-  /// Parâmetros:
-  /// - [url]: URL do arquivo a ser baixado
-  /// - [cookies]: string de cookies no formato "nome=valor; nome2=valor2"
-  /// - [referer]: URL da página que originou o download (ajuda em portais com CSRF)
-  /// - [onProgress]: callback chamado durante o download com bytes baixados/total
-  ///
-  /// Retorna: [DownloadRecord] com metadados do arquivo salvo
   Future<DownloadRecord> downloadFile({
     required String url,
     required String cookies,
@@ -102,12 +88,9 @@ class DownloadService {
     CancelToken? cancelToken,
   }) async {
     try {
-      // === ETAPA 1: Preparar cabeçalhos HTTP ===
-      // Imitamos exatamente o que o Chrome Desktop enviaria ao servidor.
       final headers = _buildHeaders(cookies: cookies, referer: referer ?? url);
 
-      // === ETAPA 2: Fazer a requisição HTTP ===
-      onProgress?.call(0, -1); // Sinaliza início
+      onProgress?.call(0, -1);
 
       Response<List<int>> response;
       try {
@@ -123,7 +106,6 @@ class DownloadService {
         throw _handleDioError(e);
       }
 
-      // === ETAPA 3: Verificar resposta HTTP ===
       if (response.statusCode == 401 || response.statusCode == 403) {
         throw const DownloadException(
           'Sessão expirada ou acesso não autorizado. Faça login novamente.',
@@ -151,13 +133,9 @@ class DownloadService {
         );
       }
 
-      // === ETAPA 4: Extrair metadados dos cabeçalhos de resposta ===
       final contentType = response.headers.value('content-type');
       final contentDisposition = response.headers.value('content-disposition');
 
-      // === ETAPA 5: Detectar extensão real do arquivo ===
-      // Esta é a etapa principal que corrige o problema:
-      // mesmo que o servidor diga "application/xml", detectamos pelos magic bytes.
       final detectedExtension = FileTypeService.detectExtension(
         headerBytes: bytes,
         contentType: contentType,
@@ -165,7 +143,6 @@ class DownloadService {
         url: url,
       );
 
-      // === ETAPA 6: Determinar nome do arquivo ===
       String fileName = _extractFileName(
         contentDisposition: contentDisposition,
         url: url,
@@ -173,20 +150,23 @@ class DownloadService {
       );
       fileName = FileUtils.sanitizeFileName(fileName);
 
-      // === ETAPA 7: Garantir que o arquivo não sobrescreva outro ===
-      final savePath = await _getSavePath(fileName);
+      String savePath;
 
-      // === ETAPA 8: Salvar o arquivo ===
-      final file = File(savePath);
-      await file.writeAsBytes(bytes, flush: true);
+      if (kIsWeb) {
+        // Na Web: disparar o download no navegador via FileSaver
+        FileSaver.saveFile(bytes: bytes, fileName: fileName);
+        savePath = 'downloads/$fileName';
+      } else {
+        // No Android/Nativo: salvar no sistema de arquivos local
+        savePath = await _getSavePath(fileName);
+        final file = File(savePath);
+        await file.writeAsBytes(bytes, flush: true);
+        _copyToPublicDocuments(file, fileName);
+      }
 
-      // Copiar também para Documents/Universidade pública
-      _copyToPublicDocuments(file, fileName);
-
-      // === ETAPA 9: Montar e retornar o registro ===
       return DownloadRecord(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
-        fileName: file.uri.pathSegments.last,
+        fileName: fileName,
         filePath: savePath,
         fileType: detectedExtension,
         fileSize: bytes.length,
@@ -194,7 +174,7 @@ class DownloadService {
         url: url,
       );
     } on DownloadException {
-      rethrow; // Já foi tratada
+      rethrow;
     } catch (e) {
       throw DownloadException(
         'Erro inesperado: ${e.toString()}',
@@ -203,65 +183,49 @@ class DownloadService {
     }
   }
 
-  // ===== MÉTODOS PRIVADOS =====
-
-  /// Constrói os cabeçalhos HTTP simulando o Chrome Desktop
   Map<String, String> _buildHeaders({
     required String cookies,
     required String referer,
   }) {
     return {
-      // User-Agent desktop Chrome 138 — crucial para receber Content-Type correto
       'User-Agent': AppConstants.desktopUserAgent,
-      // Cookies da sessão do WebView (autenticação)
       if (cookies.isNotEmpty) 'Cookie': cookies,
-      // Tipos de conteúdo aceitos (igual ao Chrome)
       'Accept':
           'text/html,application/xhtml+xml,application/xml;q=0.9,'
           'application/pdf,application/vnd.openxmlformats-officedocument.*,'
           '*/*;q=0.8',
-      // Encodings aceitos
       'Accept-Encoding': 'gzip, deflate, br',
-      // Idioma
       'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
-      // Página de origem (evita bloqueios por CSRF)
       'Referer': referer,
-      // Cache
       'Cache-Control': 'no-cache',
       'Pragma': 'no-cache',
-      // Upgrade de conexão
       'Connection': 'keep-alive',
-      // Indica que é um download direto
       'Sec-Fetch-Site': 'same-origin',
       'Sec-Fetch-Mode': 'navigate',
       'Sec-Fetch-User': '?1',
       'Sec-Fetch-Dest': 'document',
-      // Upgrade para HTTPS se disponível
       'Upgrade-Insecure-Requests': '1',
     };
   }
 
-  /// Obtém o caminho de salvamento no armazenamento do app,
-  /// garantindo que o FileProvider tenha permissão para abrir o arquivo.
   Future<String> _getSavePath(String fileName) async {
+    if (kIsWeb) return 'downloads/$fileName';
+
     Directory? appDir;
     try {
       appDir = await getExternalStorageDirectory();
     } catch (_) {}
 
-    // Fallback para storage de documentos do app se externo não disponível
     appDir ??= await getApplicationDocumentsDirectory();
 
     final universidadeDir = Directory(
       '${appDir.path}/${AppConstants.downloadFolderName}',
     );
 
-    // Criar diretório se não existir
     if (!await universidadeDir.exists()) {
       await universidadeDir.create(recursive: true);
     }
 
-    // Verificar se arquivo já existe e gerar nome único
     String savePath = '${universidadeDir.path}/$fileName';
     if (await File(savePath).exists()) {
       final lastDot = fileName.lastIndexOf('.');
@@ -278,9 +242,8 @@ class DownloadService {
     return savePath;
   }
 
-  /// Copia uma réplica do arquivo baixado para a pasta pública Documents/Universidade
-  /// para acesso pelo gerenciador de arquivos do dispositivo.
-  void _copyToPublicDocuments(File sourceFile, String fileName) async {
+  void _copyToPublicDocuments(dynamic sourceFile, String fileName) async {
+    if (kIsWeb) return;
     try {
       final publicDir = Directory(
         '/storage/emulated/0/Documents/${AppConstants.downloadFolderName}',
@@ -289,7 +252,7 @@ class DownloadService {
         await publicDir.create(recursive: true);
       }
       final targetFile = File('${publicDir.path}/$fileName');
-      await sourceFile.copy(targetFile.path);
+      await (sourceFile as File).copy(targetFile.path);
     } catch (_) {}
   }
 

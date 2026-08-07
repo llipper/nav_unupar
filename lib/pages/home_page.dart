@@ -76,40 +76,45 @@ class _HomePageState extends State<HomePage>
     return Scaffold(
       backgroundColor: const Color(0xFF0D1117),
       body: SafeArea(
-        child: FadeTransition(
-          opacity: _fadeAnim,
-          child: SlideTransition(
-            position: _slideAnim,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 28),
-              child: Column(
-                children: [
-                  const SizedBox(height: 48),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 560),
+            child: FadeTransition(
+              opacity: _fadeAnim,
+              child: SlideTransition(
+                position: _slideAnim,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 28),
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 48),
 
-                  // ===== HEADER =====
-                  _buildHeader(),
-                  const SizedBox(height: 52),
+                      // ===== HEADER =====
+                      _buildHeader(),
+                      const SizedBox(height: 52),
 
-                  // ===== ÍCONE CENTRAL ANIMADO =====
-                  _buildCenterIcon(),
-                  const SizedBox(height: 40),
+                      // ===== ÍCONE CENTRAL ANIMADO =====
+                      _buildCenterIcon(),
+                      const SizedBox(height: 40),
 
-                  // ===== TÍTULO E DESCRIÇÃO =====
-                  _buildTitleSection(),
-                  const SizedBox(height: 48),
+                      // ===== TÍTULO E DESCRIÇÃO =====
+                      _buildTitleSection(),
+                      const SizedBox(height: 48),
 
-                  // ===== FEATURES =====
-                  _buildFeaturesList(),
-                  const Spacer(),
+                      // ===== FEATURES =====
+                      _buildFeaturesList(),
+                      const Spacer(),
 
-                  // ===== BOTÃO PRINCIPAL =====
-                  _buildMainButton(context),
-                  const SizedBox(height: 16),
+                      // ===== BOTÃO PRINCIPAL =====
+                      _buildMainButton(context),
+                      const SizedBox(height: 16),
 
-                  // ===== BOTÃO HISTÓRICO =====
-                  _buildHistoryButton(context, historyCtrl.count),
-                  const SizedBox(height: 32),
-                ],
+                      // ===== BOTÃO HISTÓRICO =====
+                      _buildHistoryButton(context, historyCtrl.count),
+                      const SizedBox(height: 32),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),

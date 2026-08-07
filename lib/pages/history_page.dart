@@ -3,8 +3,6 @@
 // Tela de histórico de downloads.
 // Lista todos os arquivos baixados com opções de abrir, compartilhar e excluir.
 
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:provider/provider.dart';
@@ -37,32 +35,37 @@ class _HistoryPageState extends State<HistoryPage> {
     return Scaffold(
       backgroundColor: const Color(0xFF0D1117),
       body: SafeArea(
-        child: Column(
-          children: [
-            // ===== HEADER =====
-            _buildHeader(context),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 800),
+            child: Column(
+              children: [
+                // ===== HEADER =====
+                _buildHeader(context),
 
-            // ===== CONTEÚDO =====
-            Expanded(
-              child: Consumer<HistoryController>(
-                builder: (_, ctrl, __) {
-                  if (ctrl.isLoading) {
-                    return const Center(
-                      child: CircularProgressIndicator(
-                        color: Color(0xFF1A73E8),
-                      ),
-                    );
-                  }
+                // ===== CONTEÚDO =====
+                Expanded(
+                  child: Consumer<HistoryController>(
+                    builder: (_, ctrl, __) {
+                      if (ctrl.isLoading) {
+                        return const Center(
+                          child: CircularProgressIndicator(
+                            color: Color(0xFF1A73E8),
+                          ),
+                        );
+                      }
 
-                  if (ctrl.isEmpty) {
-                    return _buildEmptyState();
-                  }
+                      if (ctrl.isEmpty) {
+                        return _buildEmptyState();
+                      }
 
-                  return _buildHistoryList(context, ctrl);
-                },
-              ),
+                      return _buildHistoryList(context, ctrl);
+                    },
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
